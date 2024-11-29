@@ -1,51 +1,61 @@
 <script>
-  import { onMount } from "svelte";
-  import { getRoomState, joinRoom } from "../api";
-  import GameRoom from "./GameRoom.svelte";
+  import GameCanvas from "./GameCanvas.svelte";
 
-  export let roomId; // 상위 컴포넌트 또는 라우트에서 전달되는 roomId
-  let roomState = null;
-  let playerName = "";
-
-  // 디버깅용 roomId 확인
-  console.log("roomId:", roomId);
-
-  async function loadRoomState() {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      playerName = urlParams.get("playerName") || localStorage.getItem("playerName");
-
-      if (!playerName) {
-        alert("Player name is required.");
-        return;
-      }
-
-      localStorage.setItem("playerName", playerName);
-
-      await joinRoom(roomId, playerName);
-      const result = await getRoomState(roomId);
-      console.log("Room state after join:", result);
-      roomState = { ...result };
-    } catch (error) {
-      console.error("Error loading room state:", error);
-    }
-  }
-
-  onMount(() => {
-    if (!roomId) {
-      console.error("Room ID is missing");
-      alert("Room ID is missing. Please try again.");
-      return;
-    }
-    loadRoomState();
-  });
+  export let roomState; // 방 상태
+  export let selectedGameLogic; // 선택된 게임 로직
+  export let roomId; // 방 ID
+  export let playerName; // 플레이어 이름 추가
 </script>
 
-<div>
-  <h1>Room: {roomId}</h1>
-  {#if roomState}
-    <GameRoom {roomState} />
-  {:else}
-    <p>Loading...</p>
-  {/if}
+<div class="room-container">
+  <!-- 플레이어 정보 섹션 -->
+  <div class="player-info-container">
+    {#if roomState.players && roomState.players.length > 0}
+      {#each roomState.players as player (player.name)}
+        <div class="player-info">
+          <h3>{player.name}</h3>
+          <p>Chips: {player.chips}</p>
+        </div>
+      {/each}
+    {:else}
+      <p>플레이어를 기다리는 중...</p>
+    {/if}
+  </div>
+
+  <!-- 게임 캔버스 -->
+  <GameCanvas {roomState} {selectedGameLogic} {roomId} />
 </div>
+
+<style>
+  .room-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .player-info-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    max-width: 600px;
+  }
+
+  .player-info {
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+    flex: 1;
+  }
+
+  h3 {
+    margin: 0;
+  }
+
+  p {
+    margin: 5px 0 0;
+  }
+</style>

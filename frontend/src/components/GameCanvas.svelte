@@ -1,0 +1,57 @@
+<script>
+    import { onMount, onDestroy } from "svelte";
+  
+    export let roomState;
+    export let selectedGameLogic;
+    export let roomId;
+  
+    let canvas;
+    let context;
+    let socket;
+  
+    // 캔버스 렌더링 함수
+    function drawCanvas() {
+      if (selectedGameLogic && selectedGameLogic.render && context) {
+        selectedGameLogic.render(context, roomState);
+      }
+    }
+  
+    // WebSocket 초기화
+    function connectWebSocket() {
+      socket = new WebSocket(`ws://localhost:8000/api/rooms/${roomId}/ws`);
+  
+      socket.onopen = () => {
+        console.log("WebSocket connection established");
+      };
+  
+      socket.onmessage = (event) => {
+        const updatedState = JSON.parse(event.data);
+        roomState = updatedState; // 상태 업데이트
+        drawCanvas(); // 캔버스 다시 그리기
+      };
+  
+      socket.onclose = () => {
+        console.log("WebSocket connection closed");
+      };
+  
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+    }
+  
+    onMount(() => {
+      context = canvas.getContext("2d");
+      connectWebSocket();
+      drawCanvas();
+    });
+  
+    onDestroy(() => {
+      if (socket) {
+        socket.close();
+      }
+      context = null;
+    });
+  </script>
+  
+  <canvas bind:this={canvas} width="600" height="400" style="border: 1px solid black;"></canvas>
+  
