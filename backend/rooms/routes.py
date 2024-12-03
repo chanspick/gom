@@ -4,14 +4,14 @@ from typing import Dict, List
 import logging
 import asyncio
 
-# WebSocket 연결 관리
+# 데이터 관리
 connections: Dict[str, List[WebSocket]] = {}
 rooms: Dict[str, Dict] = {}
 rooms_lock = asyncio.Lock()
 
 # FastAPI Router
 router = APIRouter()
-logger = logging.getLogger("rooms")
+logger = logging.getLogger("room")
 
 # 데이터 모델
 class CreateRoomRequest(BaseModel):
@@ -26,32 +26,52 @@ class JoinRoomRequest(BaseModel):
 @router.websocket("/{room_id}/ws")
 async def room_websocket(websocket: WebSocket, room_id: str):
     await websocket.accept()
-    if room_id not in connections:
-        connections[room_id] = []
-    connections[room_id].append(websocket)
+
+    async with rooms_lock:
+        if room_id not in connections:
+            connections[room_id] = []
+        connections[room_id].append(websocket)
     logger.info(f"WebSocket connection established for room {room_id}")
 
     try:
         while True:
-            await websocket.receive_text()
+            await websocket.receive_text()  # Ping 역할
     except WebSocketDisconnect:
-        connections[room_id].remove(websocket)
-        if not connections[room_id]:
-            del connections[room_id]
         logger.info(f"WebSocket connection closed for room {room_id}")
+        async with rooms_lock:
+            if room_id in connections:
+                connections[room_id].remove(websocket)
+                if not connections[room_id]:
+                    del connections[room_id]
 
 async def broadcast_room_state(room_id: str):
+    """방 상태를 모든 클라이언트에 브로드캐스트"""
     async with rooms_lock:
-        if room_id in connections:
-            room_state = rooms.get(room_id)
-            if room_state:
-                logger.info(f"Broadcasting state for room {room_id}: {room_state}")
-                for websocket in connections[room_id]:
-                    try:
-                        await websocket.send_json(room_state)
-                    except Exception as e:
-                        logger.error(f"Failed to send room state: {e}")
+        if room_id not in connections:
+            return
+        room_state = rooms.get(room_id)
+        if not room_state:
+            logger.warning(f"No state found for room {room_id}")
+            return
 
+        disconnected_clients = []
+        for websocket in connections[room_id]:
+            try:
+                await websocket.send_json(room_state)
+            except Exception as e:
+                logger.error(f"Failed to send state to client: {e}")
+                disconnected_clients.append(websocket)
+
+        # 실패한 클라이언트를 제거
+        for websocket in disconnected_clients:
+            connections[room_id].remove(websocket)
+        if not connections[room_id]:
+            del connections[room_id]
+
+def update_room_state(room_id: str, new_state: Dict):
+    """방 상태를 업데이트하고 브로드캐스트"""
+    rooms[room_id] = new_state
+    asyncio.create_task(broadcast_room_state(room_id))
 
 # 방 생성
 @router.post("/")
@@ -67,7 +87,7 @@ async def create_room(request: CreateRoomRequest):
         rooms[request.room_id] = {
             "room_id": request.room_id,
             "game_type": request.game_type,
-            "players": [{"player_name": request.player_name}],  # 딕셔너리 형태로 플레이어 추가
+            "players": [{"player_name": request.player_name}],
             "game_started": False,
             "game_state": None,
             "status": "waiting",
@@ -78,56 +98,47 @@ async def create_room(request: CreateRoomRequest):
     return {"message": "Room created successfully.", "room": rooms[request.room_id]}
 
 
-# 방 목록 조회
 @router.get("/")
 async def get_rooms():
     """
     모든 방 목록 반환
     """
     async with rooms_lock:
-        room_list = [{"room_id": room["room_id"], "game_type": room["game_type"], "status": room["status"], "players": len(room["players"])} for room in rooms.values()]
+        room_list = [
+            {
+                "room_id": room["room_id"],
+                "game_type": room["game_type"],
+                "status": room["status"],
+                "players": [player["player_name"] for player in room["players"]],  # 플레이어 이름 추가
+            }
+            for room in rooms.values()
+        ]
         logger.info(f"Returning all rooms: {room_list}")
         return room_list
 
+# 방 참여
 @router.post("/{room_id}/join")
 async def join_room(room_id: str, request: JoinRoomRequest):
     """
     특정 방에 플레이어 추가
     """
     player_name = request.player_name
-    logger.info(f"Player {player_name} attempting to join room {room_id}")
     
     async with rooms_lock:
-        # 방 유무 확인
         if room_id not in rooms:
             raise HTTPException(status_code=404, detail="Room not found")
         
         room = rooms[room_id]
-        
-        # 방의 상태 확인
         if len(room["players"]) >= 2:
             raise HTTPException(status_code=400, detail="Room is full")
         
-        # 이미 플레이어가 있는지 확인
-        if player_name in [p["player_name"] for p in room["players"] if isinstance(p, dict)]:
+        if player_name in [p["player_name"] for p in room["players"]]:
             return {"message": "Player already in the room", "room": room}
 
-        # 플레이어 추가 (딕셔너리 형태로 추가)
         room["players"].append({"player_name": player_name})
-        
-        # 게임 시작 여부 갱신
-        if len(room["players"]) == 2:
-            room["game_started"] = True
-            room["game_state"] = initialize_game(room["players"])
-            room["status"] = "playing"
-            logger.info(f"Game started in room {room_id}")
-        else:
-            room["status"] = "waiting"
-        
-        await broadcast_room_state(room_id)
+        room["status"] = "playing" if len(room["players"]) == 2 else "waiting"
     
     return {"message": f"Player {player_name} joined room {room_id}", "room": room}
-
 
 # 방 상태 조회
 @router.get("/{room_id}")
@@ -148,24 +159,34 @@ async def delete_room(room_id: str):
     async with rooms_lock:
         if room_id not in rooms:
             raise HTTPException(status_code=404, detail="Room not found")
+        
+        await broadcast_room_deleted(room_id)
         del rooms[room_id]
         logger.info(f"Room {room_id} deleted")
-        return {"message": f"Room {room_id} deleted"}
+    
+    return {"message": f"Room {room_id} deleted"}
+
+# 방 삭제 알림 브로드캐스트
+async def broadcast_room_deleted(room_id: str):
+    async with rooms_lock:
+        if room_id in connections:
+            for websocket in connections[room_id]:
+                try:
+                    await websocket.send_json({"type": "room_deleted", "room_id": room_id})
+                except Exception as e:
+                    logger.error(f"Failed to notify client about room deletion: {e}")
+            del connections[room_id]
 
 # 게임 초기화
 def initialize_game(players: List[Dict]) -> Dict:
     """
     게임 상태 초기화
     """
-    try:
-        return {
-            "players": {player["player_name"]: {"chips": 30, "card": None} for player in players},
-            "current_turn": players[0]["player_name"],
-            "pot": 0,
-            "round_completed": False,
-            "game_round": 1,
-            "winner": None,
-        }
-    except Exception as e:
-        logger.error(f"Error initializing game: {e}")
-        raise
+    return {
+        "players": {player["player_name"]: {"chips": 30, "card": None} for player in players},
+        "current_turn": players[0]["player_name"],
+        "pot": 0,
+        "round_completed": False,
+        "game_round": 1,
+        "winner": None,
+    }

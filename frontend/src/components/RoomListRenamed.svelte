@@ -1,7 +1,6 @@
 <script>
   import { onMount } from "svelte";
   import { fetchRooms, createRoom, joinRoom } from "../api";
-  import { navigate } from "svelte-routing";
 
   let rooms = []; // 방 목록
   let roomId = ""; // 새 방 ID
@@ -22,12 +21,8 @@
 
   // 방 생성 함수
   async function handleCreateRoom() {
-    if (isCreatingRoom) {
-      return; // 이미 방 생성 요청이 진행 중이면 아무 동작도 하지 않음
-    }
-
     if (!roomId.trim() || !playerName.trim()) {
-      alert("Room ID, Game Type, and Player Name are required.");
+      alert("Room ID and Player Name are required.");
       return;
     }
 
@@ -38,9 +33,9 @@
         game_type: selectedGame,
         player_name: playerName,
       });
-      if (response.ok) {
-        console.log(`Navigating to room: /room/${roomId}?playerName=${encodeURIComponent(playerName)}`);
-        navigate(`/room/${roomId}?playerName=${encodeURIComponent(playerName)}`);
+      if (response) {
+        console.log(`Navigating to /room/${roomId}`);
+        window.location.href = `/room/${roomId}`;
       } else {
         throw new Error("Failed to create room");
       }
@@ -61,9 +56,9 @@
 
     try {
       const response = await joinRoom(roomId, playerName);
-      if (response.ok) {
-        console.log(`Navigating to room: /room/${roomId}?playerName=${encodeURIComponent(playerName)}`);
-        navigate(`/room/${roomId}?playerName=${encodeURIComponent(playerName)}`);
+      if (response) {
+        console.log(`Navigating to /room/${roomId}`);
+        window.location.href = `/room/${roomId}`;
       } else {
         throw new Error("Failed to join room");
       }
@@ -79,19 +74,26 @@
 </script>
 
 <div class="container">
+  <!-- 방 목록 섹션 -->
   <section>
     <h2>Available Rooms</h2>
-    <input bind:value={playerName} placeholder="Your Name" class="join-player-name" />
+    <input
+      bind:value={playerName}
+      placeholder="Enter Your Name"
+      class="player-name-input"
+    />
+
     <ul class="room-list">
       {#if rooms.length > 0}
         {#each rooms as room (room.room_id)}
           <li class="room-item">
-            <div class="room-details">
-              <strong>{room.room_id}</strong>
-              <span>Players: {room.players ? room.players.length : 0}/2</span>
+            <div>
+              <strong>Room ID:</strong> {room.room_id} <br />
+              <strong>Game:</strong> {room.game_type} <br />
+              <strong>Status:</strong> {room.status} <br />
+              <strong>Players:</strong> {room.players.join(", ")}
             </div>
             <button
-              class="join-button"
               on:click={() => handleJoinRoom(room.room_id)}
               disabled={room.players.length >= 2 || !playerName.trim()}
             >
@@ -100,130 +102,89 @@
           </li>
         {/each}
       {:else}
-        <p class="no-rooms">No rooms available. Create one to start!</p>
+        <p class="no-rooms">No rooms available. Create one to get started!</p>
       {/if}
     </ul>
   </section>
 
+  <!-- 방 생성 섹션 -->
   <section class="create-room">
     <h2>Create Room</h2>
-    <input bind:value={roomId} placeholder="Enter Room ID" />
+    <input bind:value={roomId} placeholder="Room ID" />
     <input bind:value={playerName} placeholder="Your Name" />
-
-    <label for="gameType">Select Game:</label>
-    <select bind:value={selectedGame} id="gameType">
+    <select bind:value={selectedGame}>
       <option value="indian-poker">Indian Poker</option>
       <option value="new-game">New Game</option>
     </select>
-
-    <button class="create-button" on:click={handleCreateRoom} disabled={isCreatingRoom}>Create Room</button>
+    <button on:click={handleCreateRoom} disabled={isCreatingRoom}>
+      Create Room
+    </button>
   </section>
 </div>
 
 <style>
   .container {
-    max-width: 800px;
+    max-width: 600px;
     margin: 0 auto;
     font-family: Arial, sans-serif;
     padding: 20px;
   }
 
   h2 {
-    margin-bottom: 15px;
-    color: #333;
     text-align: center;
+    margin-bottom: 20px;
+  }
+
+  input,
+  select {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+
+  .player-name-input {
+    margin-bottom: 20px;
   }
 
   .room-list {
     list-style: none;
     padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
   }
 
   .room-item {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 10px;
-    background-color: #f9f9f9;
   }
 
-  .room-details {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .room-details strong {
-    font-size: 16px;
-    color: #333;
-  }
-
-  .join-button {
-    padding: 5px 15px;
+  button {
+    padding: 10px 20px;
     background-color: #007bff;
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    transition: background-color 0.3s ease;
   }
 
-  .join-button:hover {
-    background-color: #0056b3;
-  }
-
-  .join-button:disabled {
+  button:disabled {
     background-color: #ccc;
     cursor: not-allowed;
   }
 
+  .create-room {
+    margin-top: 30px;
+  }
+
   .no-rooms {
     text-align: center;
-    color: #999;
-    margin-top: 10px;
-  }
-
-  .create-room {
-    margin-top: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  input,
-  select {
-    padding: 10px;
-    width: 100%;
-    max-width: 300px;
-    box-sizing: border-box;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-  }
-
-  input:focus,
-  select:focus {
-    outline: none;
-    border: 1px solid #007bff;
-  }
-
-  .create-button {
-    align-self: center;
-    padding: 10px 20px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-
-  .create-button:hover {
-    background-color: #218838;
+    color: #777;
   }
 </style>

@@ -34,15 +34,15 @@ async def lifespan(app: FastAPI):
 # FastAPI 앱 생성
 app = FastAPI(lifespan=lifespan)
 
-# 라우터 추가
-app.include_router(rooms_router, prefix="/rooms", tags=["Rooms"])
+# 라우터 추가 (prefix 수정)
+app.include_router(rooms_router, prefix="/room", tags=["Room"])  # 수정: /rooms → /room
 app.include_router(game_1_router, prefix="/game_1", tags=["Game 1"])
 
 # CORS 미들웨어 추가
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["*"],  # 필요한 경우 특정 도메인으로 제한 가능
+    allow_methods=["*"], 
     allow_headers=["*"],
 )
 
