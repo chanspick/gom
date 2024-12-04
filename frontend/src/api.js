@@ -75,3 +75,21 @@ export async function revealCards() {
     method: "POST",
   });
 }
+
+export function connectToRoom(roomId) {
+  const socket = new WebSocket(`ws://127.0.0.1:8000/room/${roomId}/ws`);
+
+  socket.onopen = () => {
+    console.log("Connected to WebSocket for room:", roomId);
+  };
+
+  socket.onerror = (error) => {
+    console.error("WebSocket error:", error);
+  };
+
+  socket.onclose = () => {
+    console.log("WebSocket connection closed");
+  };
+
+  return socket;
+}

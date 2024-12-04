@@ -1,29 +1,79 @@
-<script>
-    import { onMount } from "svelte"; // onMount를 import
-    import { getRoomState } from "../api"; // 방 상태 가져오기 함수
+<script context="module">
+    export async function load({ params }) {
+      return { props: { roomId: params.roomId } };
+    }
+  </script>
   
-    export let roomId; // 라우트에서 전달받은 roomId
+  <script>
+    import { onMount } from "svelte";
+    import { getRoomState } from "../api"; // API 함수
   
-    let roomState = {}; // 방 상태
+    export let roomId;
+    let roomState = { players: [] }; // 초기 값 설정
+    let isLoading = true; // 로딩 상태
+    let error = ""; // 에러 메시지 저장
   
-    // 컴포넌트가 마운트될 때 실행
-    onMount(async () => {
+    async function loadRoomState() {
       try {
-        roomState = await getRoomState(roomId); // 방 상태를 API로 가져옴
-        console.log("Room state loaded:", roomState);
+        const data = await getRoomState(roomId); // 방 상태 로드
+        roomState = data || { players: [] }; // 기본값 설정
+        isLoading = false;
       } catch (err) {
-        console.error("Failed to load room state:", err);
+        error = "Failed to load room state.";
+        console.error(error, err);
+        isLoading = false;
       }
+    }
+  
+    onMount(() => {
+      loadRoomState();
     });
   </script>
   
-  <h1>Room: {roomId}</h1>
-  <p>Players in the room:</p>
-  <ul>
-    {#if roomState.players}
-      {#each roomState.players as player}
-        <li>{player.player_name}</li>
-      {/each}
-    {/if}
-  </ul>
+  {#if isLoading}
+    <p>Loading room data...</p>
+  {:else if error}
+    <p class="error">{error}</p>
+  {:else}
+    <div class="game-room">
+      <h1>Room ID: {roomId}</h1>
+      <p>Status: {roomState.status || "Unknown"}</p>
+      <h2>Players</h2>
+      <ul>
+        {#if roomState.players.length > 0}
+          {#each roomState.players as player}
+            <li>{player.player_name}</li>
+          {/each}
+        {:else}
+          <li>No players in the room.</li>
+        {/if}
+      </ul>
+      <h2>Game State</h2>
+      <pre>{JSON.stringify(roomState.game_state, null, 2)}</pre>
+    </div>
+  {/if}
+  
+  <style>
+    .game-room {
+      max-width: 800px;
+      margin: 0 auto;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+  
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+  
+    li {
+      margin: 5px 0;
+    }
+  </style>
   

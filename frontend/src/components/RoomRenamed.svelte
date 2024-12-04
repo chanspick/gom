@@ -1,61 +1,78 @@
-<script>
-  import GameCanvas from "./GameCanvas.svelte";
-
-  export let roomState; // 방 상태
-  export let selectedGameLogic; // 선택된 게임 로직
-  export let roomId; // 방 ID
-  export let playerName; // 플레이어 이름 추가
+<script context="module">
+  export async function load({ params }) {
+    return { props: { roomId: params.roomId } };
+  }
 </script>
 
-<div class="room-container">
-  <!-- 플레이어 정보 섹션 -->
-  <div class="player-info-container">
-    {#if roomState.players && roomState.players.length > 0}
-      {#each roomState.players as player (player.name)}
-        <div class="player-info">
-          <h3>{player.name}</h3>
-          <p>Chips: {player.chips}</p>
-        </div>
-      {/each}
-    {:else}
-      <p>플레이어를 기다리는 중...</p>
-    {/if}
-  </div>
+<script>
+  import { onMount } from "svelte";
+  import { getRoomState } from "../api"; // API 함수
 
-  <!-- 게임 캔버스 -->
-  <GameCanvas {roomState} {selectedGameLogic} {roomId} />
-</div>
+  export let roomId;
+  let roomState = { players: [] }; // 초기 값 설정
+  let isLoading = true; // 로딩 상태
+  let error = ""; // 에러 메시지 저장
+
+  async function loadRoomState() {
+    try {
+      const data = await getRoomState(roomId); // 방 상태 로드
+      roomState = data || { players: [] }; // 기본값 설정
+      isLoading = false;
+    } catch (err) {
+      error = "Failed to load room state.";
+      console.error(error, err);
+      isLoading = false;
+    }
+  }
+
+  onMount(() => {
+    loadRoomState();
+  });
+</script>
+
+{#if isLoading}
+  <p>Loading room data...</p>
+{:else if error}
+  <p class="error">{error}</p>
+{:else}
+  <div class="game-room">
+    <h1>Room ID: {roomId}</h1>
+    <p>Status: {roomState.status || "Unknown"}</p>
+    <h2>Players</h2>
+    <ul>
+      {#if roomState.players.length > 0}
+        {#each roomState.players as player}
+          <li>{player.player_name}</li>
+        {/each}
+      {:else}
+        <li>No players in the room.</li>
+      {/if}
+    </ul>
+    <h2>Game State</h2>
+    <pre>{JSON.stringify(roomState.game_state, null, 2)}</pre>
+  </div>
+{/if}
 
 <style>
-  .room-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-
-  .player-info-container {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    width: 100%;
-    max-width: 600px;
-  }
-
-  .player-info {
-    border: 1px solid #ccc;
-    padding: 10px;
-    border-radius: 5px;
+  .game-room {
+    max-width: 800px;
+    margin: 0 auto;
+    font-family: Arial, sans-serif;
+    padding: 20px;
     text-align: center;
-    flex: 1;
   }
 
-  h3 {
-    margin: 0;
+  .error {
+    color: red;
+    font-weight: bold;
   }
 
-  p {
-    margin: 5px 0 0;
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  li {
+    margin: 5px 0;
   }
 </style>
