@@ -7,16 +7,31 @@
 <script>
   import { onMount } from "svelte";
   import { getRoomState } from "../api"; // API 함수
+  import GameCanvas from "./GameCanvas.svelte"; // 캔버스 컴포넌트
 
   export let roomId;
-  let roomState = { players: [] }; // 초기 값 설정
+  let roomState = { players: [], game_state: null }; // 초기값 설정
+  let selectedGameLogic = null; // 선택된 게임 로직
   let isLoading = true; // 로딩 상태
-  let error = ""; // 에러 메시지 저장
+  let error = ""; // 에러 메시지
 
+  // 동적으로 게임 로직 가져오기
+  async function loadGameLogic(gameType) {
+    try {
+      const module = await import(`../gameLogics/${gameType}.js`);
+      return module.default;
+    } catch (err) {
+      console.error(`Failed to load game logic for type: ${gameType}`, err);
+      return null;
+    }
+  }
+
+  // 방 상태와 게임 로직 로드
   async function loadRoomState() {
     try {
-      const data = await getRoomState(roomId); // 방 상태 로드
-      roomState = data || { players: [] }; // 기본값 설정
+      const data = await getRoomState(roomId); // API에서 방 상태 가져오기
+      roomState = data || { players: [] };
+      selectedGameLogic = await loadGameLogic(roomState.game_type || "default");
       isLoading = false;
     } catch (err) {
       error = "Failed to load room state.";
@@ -40,39 +55,19 @@
     <p>Status: {roomState.status || "Unknown"}</p>
     <h2>Players</h2>
     <ul>
-      {#if roomState.players.length > 0}
-        {#each roomState.players as player}
-          <li>{player.player_name}</li>
-        {/each}
-      {:else}
-        <li>No players in the room.</li>
-      {/if}
+      {#each roomState.players as player}
+        <li>{player.player_name}</li>
+      {/each}
     </ul>
     <h2>Game State</h2>
     <pre>{JSON.stringify(roomState.game_state, null, 2)}</pre>
+
+    <div class="canvas-container">
+      <GameCanvas {roomState} {roomId} {selectedGameLogic} />
+    </div>
   </div>
 {/if}
 
 <style>
-  .game-room {
-    max-width: 800px;
-    margin: 0 auto;
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    text-align: center;
-  }
-
-  .error {
-    color: red;
-    font-weight: bold;
-  }
-
-  ul {
-    list-style: none;
-    padding: 0;
-  }
-
-  li {
-    margin: 5px 0;
-  }
+  /* 기존 스타일 유지 */
 </style>

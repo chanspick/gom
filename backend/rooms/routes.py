@@ -23,7 +23,7 @@ class JoinRoomRequest(BaseModel):
     player_name: str
 
 # WebSocket 연결 관리
-@router.websocket("/{room_id}/ws")
+@router.websocket("/room/{room_id}/ws")
 async def room_websocket(websocket: WebSocket, room_id: str):
     await websocket.accept()
 

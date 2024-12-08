@@ -1,7 +1,6 @@
 const API_URL = "http://127.0.0.1:8000";
 
 // 공통 fetch 함수로 에러 처리 및 응답 핸들링
-// safeFetch 함수: 에러 처리 개선
 async function safeFetch(url, options = {}) {
   try {
     const response = await fetch(url, options);
@@ -12,44 +11,69 @@ async function safeFetch(url, options = {}) {
     }
     return await response.json();
   } catch (err) {
-    console.error("Fetch error:", err);
+    console.error("Fetch error:", err.message);
     throw new Error("Network error or invalid JSON response");
   }
 }
 
 // 방 목록 가져오기
 export async function fetchRooms() {
-  return await safeFetch(`${API_URL}/room/`); // 수정: /rooms/ → /room/
+  try {
+    return await safeFetch(`${API_URL}/room/`);
+  } catch (err) {
+    console.error("Failed to fetch rooms:", err.message);
+    throw err;
+  }
 }
 
 // 방 생성하기
 export async function createRoom(data) {
-  return await safeFetch(`${API_URL}/room/`, { // 수정: /rooms/ → /room/
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  try {
+    return await safeFetch(`${API_URL}/room/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  } catch (err) {
+    console.error("Failed to create room:", err.message);
+    throw err;
+  }
 }
 
 // 방에 참여하기
 export async function joinRoom(roomId, playerName) {
-  return await safeFetch(`${API_URL}/room/${roomId}/join`, { // 수정: /rooms/ → /room/
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player_name: playerName }),
-  });
+  try {
+    return await safeFetch(`${API_URL}/room/${roomId}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ player_name: playerName }),
+    });
+  } catch (err) {
+    console.error(`Failed to join room ${roomId}:`, err.message);
+    throw err;
+  }
 }
 
 // 특정 방의 상태 가져오기
 export async function getRoomState(roomId) {
-  return await safeFetch(`${API_URL}/room/${roomId}`); // 수정: /rooms/ → /room/
+  try {
+    return await safeFetch(`${API_URL}/room/${roomId}`);
+  } catch (err) {
+    console.error(`Failed to fetch state for room ${roomId}:`, err.message);
+    throw err;
+  }
 }
 
 // 방 삭제하기
 export async function deleteRoom(roomId) {
-  return await safeFetch(`${API_URL}/room/${roomId}`, { // 수정: /rooms/ → /room/
-    method: "DELETE",
-  });
+  try {
+    return await safeFetch(`${API_URL}/room/${roomId}`, {
+      method: "DELETE",
+    });
+  } catch (err) {
+    console.error(`Failed to delete room ${roomId}:`, err.message);
+    throw err;
+  }
 }
 
 
