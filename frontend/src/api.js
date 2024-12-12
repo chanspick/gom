@@ -1,3 +1,5 @@
+// src/api.js
+
 const API_URL = "http://127.0.0.1:8000";
 
 // 공통 fetch 함수로 에러 처리 및 응답 핸들링
@@ -76,7 +78,6 @@ export async function deleteRoom(roomId) {
   }
 }
 
-
 // 게임 시작하기
 export async function startGame() {
   return await safeFetch(`${API_URL}/game_1/start_game`, {
@@ -100,19 +101,28 @@ export async function revealCards() {
   });
 }
 
-export function connectToRoom(roomId) {
+// WebSocket 연결 함수
+export function connectToRoom(roomId, onMessage, onOpen, onClose, onError) {
   const socket = new WebSocket(`ws://127.0.0.1:8000/room/${roomId}/ws`);
 
   socket.onopen = () => {
     console.log("Connected to WebSocket for room:", roomId);
+    if (onOpen) onOpen(socket);
+  };
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (onMessage) onMessage(data);
+  };
+
+  socket.onclose = (event) => {
+    console.log("WebSocket connection closed:", event.reason);
+    if (onClose) onClose(event);
   };
 
   socket.onerror = (error) => {
     console.error("WebSocket error:", error);
-  };
-
-  socket.onclose = () => {
-    console.log("WebSocket connection closed");
+    if (onError) onError(error);
   };
 
   return socket;

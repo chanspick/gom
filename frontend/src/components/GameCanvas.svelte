@@ -1,50 +1,53 @@
-<script>
-  import { onMount, onDestroy } from "svelte";
+<!-- src/components/GameCanvas.svelte -->
+<script lang="ts">
+  import { onMount } from "svelte";
 
-  export let roomState;
-  export let selectedGameLogic;
-  export let roomId;
+  // TypeScript 인터페이스 정의
+  interface Player {
+    player_name: string;
+  }
 
-  let canvas;
-  let context;
-  let socket;
+  interface GameState {
+    players: { [key: string]: { chips: number; card: string | null } };
+    current_turn: string;
+    pot: number;
+    round_completed: boolean;
+    game_round: number;
+    winner: string | null;
+  }
+
+  interface RoomState {
+    room_id: string;
+    game_type: string;
+    players: Player[];
+    game_started: boolean;
+    game_state: GameState | null;
+    status: string;
+  }
+
+  export let roomState: RoomState;
+  export let selectedGameLogic: any;
+
+  let canvas: HTMLCanvasElement;
+  let context: CanvasRenderingContext2D | null;
 
   // 캔버스 렌더링 함수
-  function drawCanvas() {
+  function drawCanvas(state: GameState | null) {
     if (
       selectedGameLogic &&
       typeof selectedGameLogic.render === "function" &&
       context
     ) {
-      selectedGameLogic.render(context, roomState);
+      selectedGameLogic.render(context, state);
     } else {
       console.warn("Selected game logic is invalid or not set.");
     }
   }
 
-  // WebSocket 초기화
-  function connectWebSocket() {
-    socket = new WebSocket(`ws://localhost:8000/room/${roomId}/ws`);
-
-    socket.onopen = () => {
-      console.log("WebSocket connection established");
-    };
-
-    socket.onmessage = (event) => {
-      const updatedState = JSON.parse(event.data);
-      roomState = updatedState; // 상태 업데이트
-      drawCanvas(); // 캔버스 다시 그리기
-    };
-
-    socket.onclose = (event) => {
-      console.warn("WebSocket connection closed:", event.reason);
-      // 일정 시간 후 재연결
-      setTimeout(() => connectWebSocket(), 5000);
-    };
-
-    socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
+  // roomState가 변경될 때마다 캔버스 다시 그리기
+  $: {
+    const currentState = roomState.game_state;
+    drawCanvas(currentState);
   }
 
   onMount(() => {
@@ -54,16 +57,7 @@
       return;
     }
 
-    connectWebSocket();
-    drawCanvas();
-  });
-
-  onDestroy(() => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close();
-      console.log("WebSocket connection closed on component destroy.");
-    }
-    context = null;
+    drawCanvas(roomState.game_state);
   });
 </script>
 
